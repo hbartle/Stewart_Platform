@@ -22,7 +22,7 @@ function varargout = stewart_platform(varargin)
 
 % Edit the above text to modify the response to help stewart_platform
 
-% Last Modified by GUIDE v2.5 17-Oct-2016 14:36:37
+% Last Modified by GUIDE v2.5 17-Oct-2016 14:49:50
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -366,7 +366,160 @@ function show_handle_pushbutton_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 disp(handles);
 
+% arduino_panel_handles= getappdata(0,'arduino_panel');
+% 
+% disp(arduino_panel_handles);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Connect Devices %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% --- Executes on button press in connect_arduino_pushbutton.
+function connect_arduino_pushbutton_Callback(hObject, eventdata, handles)
+% hObject    handle to connect_arduino_pushbutton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
 
+% Set main handle struct on root, so the arduino_panel can access it.
+setappdata(0,'stewart_platform',handles);
+arduino_panel();
+% wait for user to establish connection
+uiwait;
+
+% get the new arduino object and the servo pins
+new_handles= getappdata(0,'stewart_platform');
+handles.servos= new_handles.servos;
+handles.ardu= new_handles.ardu;
+handles.arduino_status=new_handles.arduino_status;
+
+handles.s1= servo(handles.ardu,handles.servos(1),'MinPulseDuration', 0.53e-3, 'MaxPulseDuration', 2.45e-3);
+handles.s2= servo(handles.ardu,handles.servos(2),'MinPulseDuration', 0.6e-3, 'MaxPulseDuration', 2.5e-3);
+handles.s3= servo(handles.ardu,handles.servos(3),'MinPulseDuration', 0.55e-3, 'MaxPulseDuration', 2.48e-3);
+handles.s4= servo(handles.ardu,handles.servos(4),'MinPulseDuration', 0.58e-3, 'MaxPulseDuration', 2.47e-3);
+handles.s5= servo(handles.ardu,handles.servos(5),'MinPulseDuration', 0.6e-3, 'MaxPulseDuration', 2.51e-3);
+handles.s6= servo(handles.ardu,handles.servos(6),'MinPulseDuration', 0.5e-3, 'MaxPulseDuration', 2.4e-3);
+
+% handles.s1= servo(handles.ardu,handles.servos(1));
+% handles.s2= servo(handles.ardu,handles.servos(2));
+% handles.s3= servo(handles.ardu,handles.servos(3));
+% handles.s4= servo(handles.ardu,handles.servos(4));
+% handles.s5= servo(handles.ardu,handles.servos(5));
+% handles.s6= servo(handles.ardu,handles.servos(6));
+
+guidata(hObject,handles);
+
+
+
+
+
+% --- Executes on button press in connect_android_pushbutton.
+function connect_android_pushbutton_Callback(hObject, eventdata, handles)
+% hObject    handle to connect_android_pushbutton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+%setappdata(0,'stewart_platform',handles);
+%android_panel(handles);
+
+handles.toggle= ~handles.toggle;
+%UDPComIn=udp('192.168.0.26','LocalPort',5556);
+if handles.toggle==1;
+    UDPComIn=udp('192.168.0.26','LocalPort',5556);
+    count=0;
+    % Data
+    accel_data= 0; 
+    gyro_data= 0;
+    filter_data= 0;
+    pitch=0;
+    roll=0;
+    yaw= 0;
+    roll_gyro=0;
+    pitch_gyro=0;
+    yaw_gyro=0;
+    % Bias for Gyro and Accelerometer
+    accel_bias= [-0.3640    0.0378    0.0222];
+    gyro_bias= [-0.0138    0.0040    0.0200];
+    pause(0.1)
+    %Reading sensor data continuously
+    tic
+    while ishandle(handles.stewart_platform_panel)     
+
+        % Open Stream
+        fopen(UDPComIn);
+        % Scan for new data, formatted in CSV format
+        csvdata=fscanf(UDPComIn);
+        % Get single float values
+        scandata=textscan(csvdata,'%f %f %f %f %f %f %f %f %f %f %f %f %f','Delimiter',',' );
+        if cellfun(@isempty,scandata)== [0 0 0 0 0 0 0 0 0 0 0 0 0]
+          count= count + 1;
+          time(count)=toc;
+          % Time since last sample
+          if count> 1
+            delta_t= time(count)-time(count-1);
+          else
+            delta_t= time(count);
+          end
+          % Raw sensor data
+          accel_data(count,1:3)= [scandata{3},scandata{4},scandata{5}];
+          gyro_data(count,1:3)= [scandata{7}, scandata{8}, scandata{9}];
+          mag_data(count,1:3)= [scandata{11}, scandata{12}, scandata{13}];
+          if count == 1
+              mag_data0= mag_data(count,1:3);
+          end
+
+          % Norm acceleration measurments
+          accel_data(count,1:3)= accel_data(count,1:3)/norm(accel_data(count,1:3));
+
+          % Subtract bias
+          %accel_data(count,1:3)= accel_data(count,1:3)-accel_bias;
+          gyro_data(count,1:3)= gyro_data(count,1:3) - gyro_bias;
+
+          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+          %%%%%%%%%%%%%%%%%%% Calculate angles from gyroscope %%%%%%%%%%%%%%%%%
+          % The received gyro data is always in a sensor fixed CS. To get the
+          % euler angles in the inertial CS a transformation is required.
+    %       
+    %       T_gyro= 1/cos(roll)*[ [0 sin(roll) cos(roll)];...
+    %                              [0 cos(roll)*cos(pitch) -sin(roll)*cos(pitch)];...
+    %                              [cos(yaw) sin(roll)*sin(pitch) cos(roll)*cos(pitch)]];
+    % 
+    %       gyro_data_corrected(1:3,count)= T_gyro*gyro_data(count,1:3)';
+
+
+
+
+          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+          %%%%%%%%%%%%%%%%%%% Calculate angles from Acceleration %%%%%%%%%%%%%%
+
+          m= 0.99;
+          roll_accel= atan2(accel_data(count,1),sqrt(accel_data(count,2)^2 + accel_data(count,3)^2));
+          pitch_accel= atan2(accel_data(count,2),sqrt(accel_data(count,1)^2 + accel_data(count,3)^2));
+          yaw_mag= atan2(-mag_data(count,2)*cos(roll_accel)+mag_data(count,3)*sin(roll_accel),...
+                         mag_data(count,1)*cos(pitch_accel)+mag_data(count,2)*sin(pitch_accel)*sin(roll_accel)+mag_data(count,3)*sin(pitch_accel)*cos(roll_accel)); 
+          if count == 1
+               yaw_mag0= atan2(-mag_data(count,2)*cos(roll_accel)+mag_data(count,3)*sin(roll_accel),...
+                               mag_data(count,1)*cos(pitch_accel)+mag_data(count,2)*sin(pitch_accel)*sin(roll_accel)+mag_data(count,3)*sin(pitch_accel)*cos(roll_accel));
+          end
+          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+          %%%%%%%%%%%%%%%%% Complementary filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+          c=0.98;
+          k=1;
+
+          roll= c*(roll- k*gyro_data(count,2)*(delta_t)) + (1-c)*(roll_accel);
+          pitch= c*(pitch+ k*gyro_data(count,1)*(delta_t)) + (1-c)*(pitch_accel);
+          %yaw= c*(yaw + k*gyro_data(count,3)*delta_t) + (1-c)*(-yaw_mag0+yaw_mag);
+          
+          filter_data(count,1:3)= [-roll, -pitch, yaw];
+          handles.orient(1:3)=filter_data(count,1:3);
+          do_the_stewart(handles);
+        end
+        fclose(UDPComIn);
+        pause(0.01);
+    end
+end
+fclose(UDPComIn);
+guidata(hObject,handles);
+
+          
+          
+% wait for user to establish connection
+uiwait;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
